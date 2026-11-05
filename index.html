@@ -2240,6 +2240,12 @@ cv.addEventListener("pointerdown", (e) => { cv.focus(); const r = cv.getBounding
 // ---------- state ----------
 const CAT = A.cat, BODYX = 21, FOOT = CAT.foot;
 let snapCam = false;
+// progress: Volt and Frost unlock after the first Ember win; remembered in this browser
+const SAVE_KEY = "pixelcats.unlocked";
+let unlocked = false; try { unlocked = localStorage.getItem(SAVE_KEY) === "1"; } catch (_) {}
+let firstUnlock = false, unlockT = 0; const shakeT = [0, 0, 0];
+const locked = (k) => k !== "ember" && !unlocked;
+function unlockAll() { if (unlocked) return; unlocked = true; firstUnlock = true; try { localStorage.setItem(SAVE_KEY, "1"); } catch (_) {} }
 let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
 const breath = new CatBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
@@ -2376,7 +2382,7 @@ function feed(g, amount, steps) {
   if (steps) { say(FINALE[who].step + " " + Math.round(g.power * steps) + "/" + steps, INFO[who].col); for (let i = 0; i < 10; i++) P_({ x: g.x + g.w / 2, y: g.y + 16, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 2.5, max: 30, type: who === "frost" ? "flake" : "spark" }); }
 }
 function finish(g) {
-  if (g.lit) return; g.lit = true; g.power = 1; winT = 1; flash = 3;
+  if (g.lit) return; g.lit = true; g.power = 1; winT = 1; flash = 3; if (who === "ember") unlockAll();
   for (let i = 0; i < 30; i++) P_({ x: g.x + g.w / 2, y: g.y + 10, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 3.5, max: 50, type: who === "frost" ? "flake" : "spark" });
 }
 
@@ -2837,15 +2843,39 @@ function keycap(x, y, label) { const w = label.length * 4 + 5; fb.rect(x, y, x +
   if (label === "<" || label === ">") { const d = label === "<" ? -1 : 1; for (let j = 0; j < 5; j++) for (let q = 0; q <= Math.min(j, 4 - j); q++) fb.pset(x + 4 + (d > 0 ? q : 2 - q), y + 2 + j, [240, 232, 240]); }
   else P.text(fb, x + 3, y + 2, label, [240, 232, 240], 1); return w; }
 const cardFlame = new P.Flame({ height: 12, width: 4, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
+const LOCK = ["..#####..", ".##...##.", ".#.....#.", ".#.....#.", "#########", "###...###", "###...###", "####.####", "####.####", "#########"];
+function padlock(cx, cy, sc, col, dk) { LOCK.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== "#") return; const c = j < 4 ? col : (i < 2 || j > 8) ? dk : col; fb.rect(cx + (i - 4.5) * sc, cy + j * sc, cx + (i - 4.5) * sc + sc, cy + j * sc + sc, c); })); }
+function lockedCard(k, i) { // a dark window, her silhouette, a padlock and how to unlock her
+  const c = CARDS[i], sh = shakeT[i] > 0 ? Math.round(Math.sin(shakeT[i]-- * 1.6) * 3) : 0, x0 = c.x + sh, y0 = c.y;
+  fb.rect(x0, y0, x0 + c.w, y0 + c.h, [22, 18, 30]);
+  blit(scenes[k].dim, x0 + WIN.dx, y0 + WIN.dy);
+  for (let y = y0 + WIN.dy; y < y0 + WIN.dy + WIN.h; y++) for (let x = x0 + WIN.dx; x < x0 + WIN.dx + WIN.w; x++) if (x >= 0 && x < SW) blend(y * SW + x, 14, 10, 22, 0.55);
+  const src = G.cats[k][CAT.anims.idle[0]], cx = x0 + 8, cy = y0 + WIN.dy + WIN.h - 2 * (CAT.foot + 1) - 2;
+  for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) if (src.px[y * src.w + x] >>> 24) fb.rect(cx + x * 2, cy + y * 2, cx + x * 2 + 2, cy + y * 2 + 2, [12, 9, 18]);
+  padlock(x0 + c.w / 2, y0 + WIN.dy + 22, 3, [210, 200, 220], [130, 120, 150]);
+  frameRect(x0 + WIN.dx - 1, y0 + WIN.dy - 1, x0 + WIN.dx + WIN.w + 1, y0 + WIN.dy + WIN.h + 1, [16, 12, 22]);
+  const ty0 = y0 + WIN.dy + WIN.h + 5;
+  centerText("LOCKED", x0 + c.w / 2, ty0, [110, 100, 120], 2, [16, 10, 22]);
+  centerText("WIN WITH EMBER", x0 + c.w / 2, ty0 + 15, sh ? [255, 200, 120] : [170, 160, 180]);
+  centerText("TO UNLOCK", x0 + c.w / 2, ty0 + 25, sh ? [255, 200, 120] : [130, 120, 140]);
+  frameRect(x0, y0, x0 + c.w, y0 + c.h, sh ? [255, 179, 71] : [56, 44, 66]);
+}
+function unlockBurst(k, x0, y0, c) { // the padlock pops off and sparkles fly the first time the card opens
+  const u = unlockT;
+  if (u < 18) for (let y = y0; y < y0 + c.h; y++) for (let x = x0; x < x0 + c.w; x++) if (x >= 0 && x < SW && y >= 0 && y < SH) blend(y * SW + x, 255, 255, 255, 0.5 * (1 - u / 18));
+  if (u < 40) padlock(x0 + c.w / 2 + u * 0.4, y0 + WIN.dy + 22 - u * 1.4 + u * u * 0.05, 3, [210, 200, 220], [130, 120, 150]);
+  if (u < 90) { const r = P.rng(u * 31 + x0); for (let s = 0; s < 10; s++) { const a = r() * 6.28, d = u * 1.2 * (0.4 + r()); fb.pset(x0 + c.w / 2 + Math.cos(a) * d, y0 + 50 + Math.sin(a) * d * 0.7, SPARKC[(r() * 3) | 0]); } }
+}
 function picker() {
   pickT++;
   if (!scenes.ember) buildScenes();
   tint(0.5, [24, 16, 34]);
   // title with little paw prints either side
-  centerText("PICK A CAT", SW / 2, 9, [255, 240, 225], 2, [40, 24, 50]);
+  if (unlockT > 0 && unlockT < 120) centerText("NEW CATS UNLOCKED", SW / 2, 9, [180, 255, 170], 2, [20, 40, 20]); else centerText("PICK A CAT", SW / 2, 9, [255, 240, 225], 2, [40, 24, 50]);
   const PAW = [".#..#.", "......", "#.##.#", "..##..", ".####.", ".####.", "..##.."];
-  for (const [px, tilt] of [[SW / 2 - 70, -1], [SW / 2 + 58, 1]]) PAW.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === "#") fb.rect(px + i * 2 + (j < 3 ? tilt : 0), 8 + j * 2, px + i * 2 + 2 + (j < 3 ? tilt : 0), 10 + j * 2, INFO[who].col); }));
+  if (!(unlockT > 0 && unlockT < 120)) for (const [px, tilt] of [[SW / 2 - 70, -1], [SW / 2 + 58, 1]]) PAW.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === "#") fb.rect(px + i * 2 + (j < 3 ? tilt : 0), 8 + j * 2, px + i * 2 + 2 + (j < 3 ? tilt : 0), 10 + j * 2, INFO[who].col); }));
   CATS.forEach((k, i) => {
+    if (locked(k)) return lockedCard(k, i);
     const c = CARDS[i], sel = k === who, hov = hover === i, I = INFO[k], lift = sel ? 3 : hov ? 1 : 0, x0 = c.x, y0 = c.y - lift;
     if (sel) glowRect(x0, y0, x0 + c.w, y0 + c.h, I.col, 4);
     fb.rect(x0, y0, x0 + c.w, y0 + c.h, sel ? [34, 24, 44] : [26, 20, 34]);
@@ -2867,7 +2897,9 @@ function picker() {
     centerText(A.levels[k].name, x0 + c.w / 2, ty0 + 25, sel ? [190, 178, 200] : [96, 88, 104]);
     frameRect(x0, y0, x0 + c.w, y0 + c.h, sel ? I.col : hov ? [120, 104, 130] : [56, 44, 66]);
     if (sel) { frameRect(x0 + 1, y0 + 1, x0 + c.w - 1, y0 + c.h - 1, P.mix(I.col, [255, 255, 255], 0.35)); for (const [qx, qy] of [[x0, y0], [x0 + c.w - 3, y0], [x0, y0 + c.h - 3], [x0 + c.w - 3, y0 + c.h - 3]]) fb.rect(qx, qy, qx + 3, qy + 3, [255, 250, 235]); }
+    if (unlockT > 0 && k !== "ember") unlockBurst(k, x0, y0, c);
   });
+  if (unlockT > 0 && ++unlockT > 150) unlockT = 0;
   // chunky PLAY button with a shine sweeping across
   const I = INFO[who], hp = hover === "play", by = PLAYB.y + (hp ? 1 : 0), face = hp ? P.mix(I.col, [255, 255, 255], 0.2) : I.col;
   glowRect(PLAYB.x, PLAYB.y, PLAYB.x + PLAYB.w, PLAYB.y + PLAYB.h + 2, I.col, 3);
@@ -2890,9 +2922,11 @@ function step() {
   if (state === "title") {
     pl.idleT = 300; pl.anim = "sit"; pl.af += 0.07;
     let pick = -1, go = pressed.start;
-    if (pressed.left || pressed.right) pick = (CATS.indexOf(who) + (pressed.left ? -1 : 1) + 3) % 3;
+    if (pressed.left || pressed.right) { const d = pressed.left ? -1 : 1, cur = CATS.indexOf(who); let i = cur;
+      for (let s = 0; s < 3; s++) { i = (i + d + 3) % 3; if (!locked(CATS[i])) break; }
+      if (i !== cur) pick = i; else shakeT[(cur + d + 3) % 3] = 14; }
     if (tapAt) { const [x, y] = tapAt, i = cardAt(x, y);
-      if (i >= 0) { if (CATS[i] !== who) pick = i; } else if (inPlay(x, y)) go = true; }
+      if (i >= 0) { if (locked(CATS[i])) shakeT[i] = 14; else if (CATS[i] !== who) pick = i; } else if (inPlay(x, y)) go = true; }
     if (pick >= 0) { newGame(CATS[pick]); pickT = 0; }
     else if (go) { newGame(who); state = "play"; pl.idleT = 0; snapCam = true; } // always start from a clean level, camera on the cat
   } else if (state === "play") {
@@ -2917,7 +2951,7 @@ function step() {
   } else if (state === "win") {
     pl.vx = 0; pl.anim = "sit"; pl.af += 0.07; pl.idleT = 300; breath.step(false, 2); updateFrozen();
     winT++;
-    if ((pressed.start || tapAt) && winT > 160) { newGame(who); state = "title"; } // newGame resets winT; nothing may touch it after
+    if ((pressed.start || tapAt) && winT > 160) { newGame(who); state = "title"; if (firstUnlock) { firstUnlock = false; unlockT = 1; } } // newGame resets winT; nothing may touch it after
   }
   updateParts();
   const gl2 = ents.goal, target = winT > 0 && gl2 ? (pl.x + gl2.x + gl2.w / 2) / 2 + 5 - SW / 2 : pl.x + 10 - SW / 2 + pl.face * 36;
@@ -2927,7 +2961,7 @@ function step() {
   render();
   const I = INFO[who];
   if (state === "title") picker();
-  if (state === "win") { const all = herbGot === ents.herbs.length; panel([["ALL DONE", 2, I.col], [all ? "ALL CATNIP FOUND" : "CATNIP " + herbGot + "/" + ents.herbs.length, 1, all ? [180, 255, 170] : [255, 240, 225]], [I.beacon + " " + ents.beacons.filter((b) => b.lit).length + "/3   TIME " + clock.toFixed(1) + " SECONDS", 1, [230, 220, 230]], ["PRESS Z TO PICK A CAT", 1, [255, 230, 180]]], 6); }
+  if (state === "win") { const all = herbGot === ents.herbs.length; panel([["ALL DONE", 2, I.col], ...(firstUnlock ? [["VOLT AND FROST UNLOCKED", 1, [180, 255, 170]]] : []), [all ? "ALL CATNIP FOUND" : "CATNIP " + herbGot + "/" + ents.herbs.length, 1, all ? [180, 255, 170] : [255, 240, 225]], [I.beacon + " " + ents.beacons.filter((b) => b.lit).length + "/3   TIME " + clock.toFixed(1) + " SECONDS", 1, [230, 220, 230]], ["PRESS Z TO PICK A CAT", 1, [255, 230, 180]]], 6); }
   cam = save;
   pressed.jump = 0; pressed.start = 0; pressed.fire = 0; pressed.left = 0; pressed.right = 0; tapAt = null;
 }
@@ -2942,7 +2976,7 @@ function loop(now) {
   out32.set(fb.px); ctx.putImageData(img, 0, 0);
   requestAnimationFrame(loop);
 }
-window.__ember = { get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; } };
+window.__ember = { get unlocked() { return unlocked; }, set unlocked(v) { unlocked = v; try { localStorage.setItem(SAVE_KEY, v ? "1" : "0"); } catch (_) {} }, get unlockT() { return unlockT; }, get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; } };
 load().then(() => { newGame("ember"); try { window.focus(); } catch (e) {} requestAnimationFrame(loop); });
 })();
 </script>
