@@ -2239,6 +2239,7 @@ cv.addEventListener("pointerdown", (e) => { cv.focus(); const r = cv.getBounding
 
 // ---------- state ----------
 const CAT = A.cat, BODYX = 21, FOOT = CAT.foot;
+let snapCam = false;
 let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
 const breath = new CatBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
@@ -2893,7 +2894,7 @@ function step() {
     if (tapAt) { const [x, y] = tapAt, i = cardAt(x, y);
       if (i >= 0) { if (CATS[i] !== who) pick = i; } else if (inPlay(x, y)) go = true; }
     if (pick >= 0) { newGame(CATS[pick]); pickT = 0; }
-    else if (go) { state = "play"; pl.idleT = 0; }
+    else if (go) { newGame(who); state = "play"; pl.idleT = 0; snapCam = true; } // always start from a clean level, camera on the cat
   } else if (state === "play") {
     clock += 1 / 60;
     updatePlayer();
@@ -2915,12 +2916,12 @@ function step() {
     }
   } else if (state === "win") {
     pl.vx = 0; pl.anim = "sit"; pl.af += 0.07; pl.idleT = 300; breath.step(false, 2); updateFrozen();
-    if ((pressed.start || tapAt) && winT > 160) { newGame(who); state = "title"; }
     winT++;
+    if ((pressed.start || tapAt) && winT > 160) { newGame(who); state = "title"; } // newGame resets winT; nothing may touch it after
   }
   updateParts();
   const gl2 = ents.goal, target = winT > 0 && gl2 ? (pl.x + gl2.x + gl2.w / 2) / 2 + 5 - SW / 2 : pl.x + 10 - SW / 2 + pl.face * 36;
-  cam += (target - cam) * 0.08; cam = Math.max(0, Math.min(LWpx - SW, cam));
+  cam += (target - cam) * (snapCam ? 1 : 0.08); cam = Math.max(0, Math.min(LWpx - SW, cam)); snapCam = false;
   if (state === "title") { titleCam += 0.35; cam = Math.abs(((titleCam / (LWpx - SW)) % 2) - 1) * (LWpx - SW); } // slow pan back and forth across her level
   const save = cam; cam = Math.round(cam);
   render();
@@ -2931,11 +2932,13 @@ function step() {
   pressed.jump = 0; pressed.start = 0; pressed.fire = 0; pressed.left = 0; pressed.right = 0; tapAt = null;
 }
 let acc = 0, last = 0, paused = false;
+document.addEventListener("visibilitychange", () => { last = 0; acc = 0; });
 function loop(now) {
   if (paused) { requestAnimationFrame(loop); return; }
   if (!last) last = now;
   acc += Math.min(100, now - last); last = now;
-  let n = 0; while (acc >= 1000 / 60 && n < 4) { step(); acc -= 1000 / 60; n++; }
+  let n = 0; while (acc >= 1000 / 60 && n < 2) { step(); acc -= 1000 / 60; n++; }
+  if (acc > 1000 / 60) acc = 0; // after a slow frame, drop the backlog instead of fast-forwarding to catch up
   out32.set(fb.px); ctx.putImageData(img, 0, 0);
   requestAnimationFrame(loop);
 }
