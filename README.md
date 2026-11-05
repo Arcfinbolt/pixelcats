@@ -10,6 +10,6 @@ No damage and no falling deaths: obstacles just bump you back, and water is for 
 
 **Play:** open `index.html` in a browser, or visit the GitHub Pages site for this repository.
 
-**Controls:** arrow keys to walk, Shift to run, Z or Space to jump, X for the cat's power. On phones, on-screen buttons appear.
+**Controls:** arrow keys to walk (hold a direction to break into a run), Z or Space to jump, X for the cat's power. On phones, on-screen buttons appear.
 
 Art and effects are generated in code with the [Codixel](https://github.com/mankidev/codixel) pixel-art library.

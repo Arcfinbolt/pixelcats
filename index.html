@@ -69,7 +69,7 @@
   <div class="pad" id="pad" role="group" aria-label="Move left or right"><span class="l">&#9664;</span><span class="r">&#9654;</span></div>
   <div class="acts"><button class="j" data-k="jump" aria-label="Jump">JUMP</button><button class="f" data-k="fire" id="powerBtn" aria-label="Use power">FIRE</button></div>
 </div>
-<p class="keys"><span><b>&larr; &rarr;</b>walk</span><span><b>Shift</b>run</span><span><b>Z</b>or <b>Space</b> jump</span><span><b>X</b>power</span><span>Pick a cat on the title screen with <b>&larr; &rarr;</b>. Each cat has her own place to explore. Gather catnip, wake up the three small lights, then the big one at the end.</span></p>
+<p class="keys"><span><b>&larr; &rarr;</b>walk (hold to run)</span><span><b>Z</b>or <b>Space</b> jump</span><span><b>X</b>power</span><span>Pick a cat on the title screen with <b>&larr; &rarr;</b>. Each cat has her own place to explore. Gather catnip, wake up the three small lights, then the big one at the end.</span></p>
 
 <script>"use strict";
 
@@ -2196,7 +2196,7 @@ function buildLevel(key) {
       if (key === "volt") ents.goal = { type: "generator", x: wx - 10, y: ground - 64, w: 36, h: 64, lit: false };
       if (key === "frost") ents.goal = { type: "bigFountain", x: wx - 16, y: ground - 64, w: 48, h: 64, lit: false };
     } else if (c === "n") ents.nodes.push({ x: wx + 1, y: ground - 16, w: 14, h: 16, on: false, gate: null });
-    else if (c === "v") ents.vents.push({ x: wx - 1, y: ground - 5, t: (x * 37) % 150 });
+    else if (c === "v") ents.vents.push({ x: wx - 1, y: ground - 5, t: (x * 37 + 67) % 150 }); // phase chosen so the first vent puffs just as a fast run arrives
     if (c === "I") iceHp.set(y * LW + x, 0);
     if ("Pfsdtwcnv L".includes(c)) tiles[y][x] = ".";
   }
@@ -2212,7 +2212,7 @@ const waterAtPx = (x, y) => tileAt(Math.floor(x / T), Math.floor(y / T)) === "~"
 
 // ---------- input ----------
 const keys = { left: 0, right: 0, jump: 0, fire: 0, run: 0 }, pressed = { jump: 0, start: 0, fire: 0, left: 0, right: 0 };
-const map = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", KeyZ: "jump", Space: "jump", ArrowUp: "jump", KeyW: "jump", KeyK: "jump", KeyX: "fire", KeyJ: "fire", ShiftLeft: "run", ShiftRight: "run", KeyC: "run" };
+const map = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", KeyZ: "jump", Space: "jump", ArrowUp: "jump", KeyW: "jump", KeyK: "jump", KeyX: "fire", KeyJ: "fire",  };
 const edge = (k) => k === "jump" || k === "fire" || k === "left" || k === "right";
 addEventListener("keydown", (e) => { const k = map[e.code]; if (k) { e.preventDefault(); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; } if (e.code === "Enter" || e.code === "KeyZ" || e.code === "Space") pressed.start = 1; });
 addEventListener("keyup", (e) => { const k = map[e.code]; if (k) keys[k] = 0; });
@@ -2293,7 +2293,7 @@ function updatePlayer() {
   if (who === "ember") updateEmber(); else if (who === "volt") updateVolt(); else updateFrost();
   // move
   pl.holdT = dir && dir === pl.face ? pl.holdT + 1 : 0;
-  let max = pl.breathing || pl.charge > 0 ? BMAX : keys.run || pl.holdT > 42 || !pl.ground && Math.abs(pl.vx) > WALKV ? MAXV : WALKV;
+  let max = pl.breathing || pl.charge > 0 ? BMAX : pl.holdT > 42 || !pl.ground && Math.abs(pl.vx) > WALKV ? MAXV : WALKV;
   if (pl.swim) max = pl.charge > 0 ? 0.3 : SWIMV;
   if (pl.turnT > 0) pl.turnT--;
   if (pl.bumpT > 0) pl.bumpT--;
@@ -2860,11 +2860,26 @@ function lockedCard(k, i) { // a dark window, her silhouette, a padlock and how 
   centerText("TO UNLOCK", x0 + c.w / 2, ty0 + 25, sh ? [255, 200, 120] : [130, 120, 140]);
   frameRect(x0, y0, x0 + c.w, y0 + c.h, sh ? [255, 179, 71] : [56, 44, 66]);
 }
-function unlockBurst(k, x0, y0, c) { // the padlock pops off and sparkles fly the first time the card opens
-  const u = unlockT;
-  if (u < 18) for (let y = y0; y < y0 + c.h; y++) for (let x = x0; x < x0 + c.w; x++) if (x >= 0 && x < SW && y >= 0 && y < SH) blend(y * SW + x, 255, 255, 255, 0.5 * (1 - u / 18));
-  if (u < 40) padlock(x0 + c.w / 2 + u * 0.4, y0 + WIN.dy + 22 - u * 1.4 + u * u * 0.05, 3, [210, 200, 220], [130, 120, 150]);
-  if (u < 90) { const r = P.rng(u * 31 + x0); for (let s = 0; s < 10; s++) { const a = r() * 6.28, d = u * 1.2 * (0.4 + r()); fb.pset(x0 + c.w / 2 + Math.cos(a) * d, y0 + 50 + Math.sin(a) * d * 0.7, SPARKC[(r() * 3) | 0]); } }
+// when a cat unlocks, her card lights up as if selected for about a second, with her own effect (Volt first, then Frost)
+const UNLOCK_AT = { volt: 8, frost: 48 }, UNLOCK_LEN = 72;
+const litU = (k) => (unlockT > 0 && UNLOCK_AT[k] != null ? unlockT - UNLOCK_AT[k] : -1);
+function unlockBurst(k, x0, y0, c) {
+  const u = litU(k), cx = x0 + c.w / 2, cy = y0 + WIN.dy + WIN.h / 2; fb.ox = 0;
+  if (u < 0) { padlock(cx, y0 + WIN.dy + 22, 3, [210, 200, 220], [130, 120, 150]); return; } // still waiting its turn
+  if (u < 14) for (let y = y0; y < y0 + c.h; y++) for (let x = x0; x < x0 + c.w; x++) if (x >= 0 && x < SW && y >= 0 && y < SH) blend(y * SW + x, 255, 255, 255, 0.55 * (1 - u / 14));
+  if (u < 40) padlock(cx + u * 0.5, y0 + WIN.dy + 22 - u * 1.6 + u * u * 0.06, 3, [210, 200, 220], [130, 120, 150]);
+  if (u >= UNLOCK_LEN) return;
+  if (k === "volt") {
+    if (u < 10) { flash = Math.max(flash, u < 2 ? 1 : 0); strokeBolt(jag(cx + 6, -4, cx, cy, 12, 91 + (u >> 1)), true); strokeBolt(jag(cx, cy, cx - 22, cy + 30, 8, 7 + u), false); }
+    if (u % 3 === 0) { const r = P.rng(u * 13 + 5); for (let s = 0; s < 3; s++) { const e = r() * 4 | 0, q = r(); const px = e < 2 ? x0 + q * c.w : (e === 2 ? x0 : x0 + c.w), py = e >= 2 ? y0 + q * c.h : (e === 0 ? y0 : y0 + c.h);
+      strokeBolt(jag(px, py, px + (r() - 0.5) * 14, py + (r() - 0.5) * 14, 4, u + s), false); } }
+    if (u < 50) { const r = P.rng(u * 71); for (let s = 0; s < 6; s++) fb.pset(cx + (r() - 0.5) * c.w * 1.1, cy + (r() - 0.5) * c.h, SPARKC[(r() * 3) | 0]); }
+  } else {
+    const rad = u * 2.2; if (u < 34) for (let a = 0; a < 6.28; a += 0.22) { const x = cx + Math.cos(a + u * 0.05) * rad, y = cy + Math.sin(a + u * 0.05) * rad * 0.8; fb.pset(x, y, FLAKE[(a * 5 | 0) & 1]); if ((a * 9 | 0) % 3 === 0) { fb.pset(x - 1, y, FLAKE[1]); fb.pset(x + 1, y, FLAKE[1]); fb.pset(x, y - 1, FLAKE[1]); fb.pset(x, y + 1, FLAKE[1]); } }
+    const grow = Math.min(1, u / 20); for (const [qx, qy, dx, dy] of [[x0 + 2, y0 + 2, 1, 1], [x0 + c.w - 3, y0 + 2, -1, 1], [x0 + 2, y0 + c.h - 3, 1, -1], [x0 + c.w - 3, y0 + c.h - 3, -1, -1]])
+      for (let s = 0; s < 9 * grow; s++) { fb.pset(qx + dx * s, qy, FLAKE[1]); fb.pset(qx, qy + dy * s, FLAKE[1]); if (s < 6 * grow) fb.pset(qx + dx * s, qy + dy * s, FLAKE[0]); }
+    const r = P.rng(7); for (let s = 0; s < 14; s++) { const fx = x0 + r() * c.w, fy = y0 - 10 + ((r() * c.h + u * (0.6 + r() * 0.6)) % (c.h + 10)); if (r() < 0.8) fb.pset(fx + Math.sin(u * 0.1 + s) * 2, fy, FLAKE[s & 1]); }
+  }
 }
 function picker() {
   pickT++;
@@ -2876,7 +2891,7 @@ function picker() {
   if (!(unlockT > 0 && unlockT < 120)) for (const [px, tilt] of [[SW / 2 - 70, -1], [SW / 2 + 58, 1]]) PAW.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === "#") fb.rect(px + i * 2 + (j < 3 ? tilt : 0), 8 + j * 2, px + i * 2 + 2 + (j < 3 ? tilt : 0), 10 + j * 2, INFO[who].col); }));
   CATS.forEach((k, i) => {
     if (locked(k)) return lockedCard(k, i);
-    const c = CARDS[i], sel = k === who, hov = hover === i, I = INFO[k], lift = sel ? 3 : hov ? 1 : 0, x0 = c.x, y0 = c.y - lift;
+    const lu = litU(k), lit = lu >= 0 && lu < UNLOCK_LEN, c = CARDS[i], sel = k === who || lit, hov = hover === i, I = INFO[k], lift = sel ? 3 : hov ? 1 : 0, x0 = c.x, y0 = c.y - lift;
     if (sel) glowRect(x0, y0, x0 + c.w, y0 + c.h, I.col, 4);
     fb.rect(x0, y0, x0 + c.w, y0 + c.h, sel ? [34, 24, 44] : [26, 20, 34]);
     // the window into her level
@@ -2884,7 +2899,7 @@ function picker() {
     frameRect(x0 + WIN.dx - 1, y0 + WIN.dy - 1, x0 + WIN.dx + WIN.w + 1, y0 + WIN.dy + WIN.h + 1, sel ? P.mix(I.col, [40, 20, 40], 0.45) : [16, 12, 22]);
     // the cat, 2x, standing in her window; a little hop when chosen
     const an = CAT.anims, idleI = sel ? an.idle[(pickT >> 4) % an.idle.length] : an.idle[0], fi = sel && pickT % 200 > 190 ? an.blink[0] : idleI;
-    const hop = sel && pickT < 20 ? Math.round(Math.sin((pickT / 20) * Math.PI) * 8) : 0;
+    const hopT = lit ? lu - 6 : pickT, hop = sel && hopT >= 0 && hopT < 20 ? Math.round(Math.sin((hopT / 20) * Math.PI) * 8) : 0;
     const cx = x0 + 8, cy = y0 + WIN.dy + WIN.h - 2 * (CAT.foot + 1) - 2 - hop;
     blitScaled2(G.cats[k][fi], cx, cy, !sel && !hov);
     if (sel) { const tp = CAT.tail[fi], tx = cx + tp[0] * 2, ty = cy + tp[1] * 2; fb.ox = 0;
@@ -2899,7 +2914,7 @@ function picker() {
     if (sel) { frameRect(x0 + 1, y0 + 1, x0 + c.w - 1, y0 + c.h - 1, P.mix(I.col, [255, 255, 255], 0.35)); for (const [qx, qy] of [[x0, y0], [x0 + c.w - 3, y0], [x0, y0 + c.h - 3], [x0 + c.w - 3, y0 + c.h - 3]]) fb.rect(qx, qy, qx + 3, qy + 3, [255, 250, 235]); }
     if (unlockT > 0 && k !== "ember") unlockBurst(k, x0, y0, c);
   });
-  if (unlockT > 0 && ++unlockT > 150) unlockT = 0;
+  if (unlockT > 0 && ++unlockT > UNLOCK_AT.frost + UNLOCK_LEN + 10) unlockT = 0;
   // chunky PLAY button with a shine sweeping across
   const I = INFO[who], hp = hover === "play", by = PLAYB.y + (hp ? 1 : 0), face = hp ? P.mix(I.col, [255, 255, 255], 0.2) : I.col;
   glowRect(PLAYB.x, PLAYB.y, PLAYB.x + PLAYB.w, PLAYB.y + PLAYB.h + 2, I.col, 3);
