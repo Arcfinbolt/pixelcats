@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1b1420">
 <title>Ember the Fire Cat</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,13 +27,36 @@
   canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: none; }
   .keys { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: center; font-size: 14px; color: var(--muted); margin: 0; max-width: 76ch; }
   .keys b { font-family: var(--display); font-weight: 400; font-size: 12px; color: var(--ink); background: var(--panel); border: 1px solid #4a3340; border-bottom-width: 2px; border-radius: 3px; padding: 1px 6px; margin-right: 4px; }
-  .touch { display: none; width: min(100%, 720px); justify-content: space-between; gap: 12px; }
-  .touch div { display: flex; gap: 12px; }
-  .touch button { width: 64px; height: 64px; border-radius: 50%; border: 2px solid #5a3f4c; background: var(--panel); color: var(--ink);
-    font-family: var(--display); font-size: 12px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-  .touch button:active, .touch button.on { background: #4a2f3c; }
-  .touch .f { border-color: var(--ember); color: var(--ember); }
-  @media (hover: none) and (pointer: coarse) { .touch { display: flex; } .keys { display: none; } .stage { width: min(100%, calc((100vh - 170px) * 384 / 224), 1152px); } }
+  /* touch controls: a slide-able left/right pad and two action buttons; shown only on touch screens */
+  .touch { display: none; width: 100%; justify-content: space-between; align-items: center; gap: 12px; box-sizing: border-box;
+    padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); padding-bottom: max(10px, env(safe-area-inset-bottom, 0px)); }
+  .touch, .touch * { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .pad { position: relative; width: 168px; height: 76px; border-radius: 38px; border: 2px solid #5a3f4c; background: rgba(42, 29, 44, 0.86); display: flex; }
+  .pad span { flex: 1; display: grid; place-items: center; font-size: 26px; color: var(--muted); border-radius: 38px; }
+  .pad span + span { border-left: 2px solid #4a3340; border-radius: 0 38px 38px 0; } .pad span:first-child { border-radius: 38px 0 0 38px; }
+  .pad.L .l, .pad.R .r { background: #4a2f3c; color: var(--ink); }
+  .acts { display: flex; gap: 16px; align-items: flex-end; }
+  .acts button { width: 78px; height: 78px; border-radius: 50%; border: 2px solid #5a3f4c; background: rgba(42, 29, 44, 0.86); color: var(--ink); font-family: var(--display); font-size: 13px; padding: 0; }
+  .acts .j { margin-bottom: 18px; }
+  .acts button.on { background: #4a2f3c; transform: translateY(1px); }
+  .acts .f { border-color: var(--pc, var(--ember)); color: var(--pc, var(--ember)); }
+  @media (hover: none) and (pointer: coarse) {
+    html, body { overflow: hidden; overscroll-behavior: none; touch-action: none; -webkit-user-select: none; user-select: none; }
+    body { justify-content: flex-start; gap: 12px; padding-block: max(14px, env(safe-area-inset-top, 0px)) 0; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+    .keys { display: none; } .touch { display: flex; margin-top: auto; padding-bottom: max(26px, env(safe-area-inset-bottom, 0px)); }
+    .stage { width: 100%; max-width: 100%; }
+  }
+  /* phone held sideways: the game takes the middle, the pad sits in the left margin and the buttons stack in the right one */
+  @media (hover: none) and (pointer: coarse) and (orientation: landscape) {
+    h1 { display: none; }
+    body { padding: 0; justify-content: center; }
+    .stage { width: auto; height: min(100vh, (100vw - 236px) * 224 / 384); height: min(100dvh, (100vw - 236px) * 224 / 384); max-width: 100vw; box-shadow: 0 0 0 2px var(--panel); border-radius: 0; }
+    .touch { position: fixed; left: 0; right: 0; bottom: 0; top: 0; margin: 0; pointer-events: none; align-items: flex-end; padding-bottom: max(14px, env(safe-area-inset-bottom, 0px)); }
+    .touch > * { pointer-events: auto; }
+    .pad { width: 108px; height: 70px; } .pad span { font-size: 22px; }
+    .acts { flex-direction: column-reverse; align-items: center; gap: 12px; }
+    .acts button { width: 74px; height: 74px; } .acts .j { margin-bottom: 0; }
+  }
 </style>
 
 </head>
@@ -41,8 +66,8 @@
   <canvas id="c" width="384" height="224" aria-label="Cat platformer game screen"></canvas>
 </div>
 <div class="touch" id="touch">
-  <div><button class="l" data-k="left" aria-label="Move left">&#9664;</button><button class="r" data-k="right" aria-label="Move right">&#9654;</button></div>
-  <div><button class="j" data-k="jump" aria-label="Jump">JUMP</button><button class="f" data-k="fire" aria-label="Use power">POWER</button></div>
+  <div class="pad" id="pad" role="group" aria-label="Move left or right"><span class="l">&#9664;</span><span class="r">&#9654;</span></div>
+  <div class="acts"><button class="j" data-k="jump" aria-label="Jump">JUMP</button><button class="f" data-k="fire" id="powerBtn" aria-label="Use power">FIRE</button></div>
 </div>
 <p class="keys"><span><b>&larr; &rarr;</b>walk</span><span><b>Shift</b>run</span><span><b>Z</b>or <b>Space</b> jump</span><span><b>X</b>power</span><span>Pick a cat on the title screen with <b>&larr; &rarr;</b>. Each cat has her own place to explore. Gather catnip, wake up the three small lights, then the big one at the end.</span></p>
 
@@ -2191,11 +2216,21 @@ const map = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right
 const edge = (k) => k === "jump" || k === "fire" || k === "left" || k === "right";
 addEventListener("keydown", (e) => { const k = map[e.code]; if (k) { e.preventDefault(); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; } if (e.code === "Enter" || e.code === "KeyZ" || e.code === "Space") pressed.start = 1; });
 addEventListener("keyup", (e) => { const k = map[e.code]; if (k) keys[k] = 0; });
-for (const btn of document.querySelectorAll(".touch button")) {
+// the pad: any finger on the left half walks left, on the right half walks right; sliding across switches direction
+const pad = document.getElementById("pad"), padPtr = new Map();
+function padUpdate() { const r = pad.getBoundingClientRect(); let l = 0, rt = 0; for (const x of padPtr.values()) { if (x < r.left + r.width / 2) l = 1; else rt = 1; }
+  if (l && !keys.left) pressed.left = 1; if (rt && !keys.right) pressed.right = 1; keys.left = l; keys.right = rt; pad.classList.toggle("L", !!l); pad.classList.toggle("R", !!rt); }
+pad.addEventListener("pointerdown", (e) => { e.preventDefault(); try { pad.setPointerCapture(e.pointerId); } catch (_) {} padPtr.set(e.pointerId, e.clientX); padUpdate(); });
+pad.addEventListener("pointermove", (e) => { if (padPtr.has(e.pointerId)) { padPtr.set(e.pointerId, e.clientX); padUpdate(); } });
+for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) pad.addEventListener(ev, (e) => { padPtr.delete(e.pointerId); padUpdate(); });
+addEventListener("contextmenu", (e) => { if (matchMedia("(pointer: coarse)").matches) e.preventDefault(); });
+const powerBtn = document.getElementById("powerBtn");
+function setPowerButton() { const c = INFO[who].col; powerBtn.textContent = { ember: "FIRE", volt: "ZAP", frost: "FREEZE" }[who]; powerBtn.style.setProperty("--pc", `rgb(${c[0]},${c[1]},${c[2]})`); }
+for (const btn of document.querySelectorAll(".acts button")) {
   const k = btn.dataset.k;
-  const on = (e) => { e.preventDefault(); btn.setPointerCapture?.(e.pointerId); btn.classList.add("on"); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; if (k === "jump") pressed.start = 1; };
+  const on = (e) => { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} btn.classList.add("on"); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; if (k === "jump") pressed.start = 1; };
   const off = (e) => { e.preventDefault(); btn.classList.remove("on"); keys[k] = 0; };
-  btn.addEventListener("pointerdown", on); btn.addEventListener("pointerup", off); btn.addEventListener("pointercancel", off); btn.addEventListener("pointerleave", off);
+  btn.addEventListener("pointerdown", on); btn.addEventListener("pointerup", off); btn.addEventListener("pointercancel", off); btn.addEventListener("lostpointercapture", off);
 }
 // clicks on the canvas: pick a cat card / press PLAY on the title screen, continue on the win screen. A click never starts play by accident.
 let tapAt = null;
@@ -2209,7 +2244,7 @@ const breath = new CatBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
 const hudFlame = new P.Flame({ height: 12, width: 3.5, speed: 2.8, rough: 1, swayAmp: 2, bits: 0 });
 function resetPlayer(at) { pl = { x: at.x, y: at.y - 16, w: 20, h: 16, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jbuf: 0, inv: 0, fire: 100, over: false, regen: 0, breathing: false, anim: "idle", af: 0, idleT: 0, bumpT: 0, landT: 0, holdT: 0, turnT: 0, turnFrom: 1, mana: 100, manaWait: 0, zapCD: 0, zapT: 0, swim: false, charge: 0, freezeCD: 0 }; }
-function newGame(key = who) { who = key; falling = []; shatterQ = []; bolt = null; buildLevel(key); resetPlayer(ents.start); herbGot = 0; clock = 0; parts = []; winT = 0; breath.a.fill(0); cam = 0; msg = null; }
+function newGame(key = who) { who = key; setPowerButton(); falling = []; shatterQ = []; bolt = null; buildLevel(key); resetPlayer(ents.start); herbGot = 0; clock = 0; parts = []; winT = 0; breath.a.fill(0); cam = 0; msg = null; }
 const say = (text, c) => (msg = { text, c, t: 110 });
 
 // ---------- particles ----------
