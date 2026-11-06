@@ -2203,8 +2203,8 @@ function buildLevel(key) {
   if (ents.goal) Object.assign(ents.goal, { power: 0, hinted: false, heated: false });
   // gates: vertical runs of G; each power node opens the nearest gate to its right
   for (let x = 0; x < LW; x++) { const rows = []; for (let y = 0; y < ROWS; y++) if (tiles[y][x] === "G") rows.push(y); if (rows.length) ents.gates.push({ tx: x, rows, open: false, t: 0 }); }
-  // the bubble in front of the first high plateau (Frost's level, column 56) starts 3 s further along its drift
-  { const pb = ents.foes.find((f) => f.type === "bubble" && Math.floor(f.x / T) === 56); if (pb) for (let i = 0; i < 180; i++) { pb.t += 1 / 60; bubbleDrift(pb); } }
+  // bubbles in front of Frost's two high plateaus start further along their drift: column 56 by 3 s, column 107 by 2 s
+  for (const [col, sec] of [[56, 3], [107, 2]]) { const pb = ents.foes.find((f) => f.type === "bubble" && Math.floor(f.x / T) === col); if (pb) for (let i = 0; i < sec * 60; i++) { pb.t += 1 / 60; bubbleDrift(pb); } }
   for (const n of ents.nodes) n.gate = ents.gates.filter((g) => g.tx * T > n.x).sort((a, b) => a.tx - b.tx)[0] || null;
 }
 const tileAt = (tx, ty) => (tx < 0 || tx >= LW ? "=" : ty < 0 ? "." : ty >= ROWS ? "#" : tiles[ty][tx]);
