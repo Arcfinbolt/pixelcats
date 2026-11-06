@@ -2203,6 +2203,8 @@ function buildLevel(key) {
   if (ents.goal) Object.assign(ents.goal, { power: 0, hinted: false, heated: false });
   // gates: vertical runs of G; each power node opens the nearest gate to its right
   for (let x = 0; x < LW; x++) { const rows = []; for (let y = 0; y < ROWS; y++) if (tiles[y][x] === "G") rows.push(y); if (rows.length) ents.gates.push({ tx: x, rows, open: false, t: 0 }); }
+  // the level's first bubble starts 1.2 s further along its drift
+  { const first = ents.foes.filter((f) => f.type === "bubble").sort((a, b) => a.x - b.x)[0]; if (first) for (let i = 0; i < 72; i++) { first.t += 1 / 60; bubbleDrift(first); } }
   for (const n of ents.nodes) n.gate = ents.gates.filter((g) => g.tx * T > n.x).sort((a, b) => a.tx - b.tx)[0] || null;
 }
 const tileAt = (tx, ty) => (tx < 0 || tx >= LW ? "=" : ty < 0 ? "." : ty >= ROWS ? "#" : tiles[ty][tx]);
@@ -2545,6 +2547,11 @@ function updateFrozen() {
 }
 
 // ---------- foes: plain rolling things that bump you back ----------
+function bubbleDrift(e) { // one frame of a bubble's back-and-forth drift just above the ground
+  const nx = e.x + e.vx, front = e.vx > 0 ? nx + e.w : nx, wall = solidAtPx(front, e.base + 4) || solidAtPx(front, e.base + e.h - 1), floor = tileAt(Math.floor(front / T), Math.floor((e.base + e.h + 6) / T));
+  if (wall || (!solid(floor) && floor !== "-") || (e.vx < 0 && nx < e.minX)) e.vx = -e.vx; else e.x = nx;
+  e.y = e.base + Math.sin(e.t * 2.4) * 2;
+}
 function updateFoes() {
   for (const e of ents.foes) {
     e.t += 1 / 60;
@@ -2556,9 +2563,7 @@ function updateFoes() {
     if (e.type === "sparkle") { e.x = e.x0 + Math.sin(e.t * 0.9) * 22; e.y = e.y0 + Math.sin(e.t * 1.9) * 7; }
     else if (e.type === "bubble") { // drifts a little above the ground, turns at walls and edges
       if (Math.abs(e.x - pl.x) > SW) continue;
-      const nx = e.x + e.vx, front = e.vx > 0 ? nx + e.w : nx, wall = solidAtPx(front, e.base + 4) || solidAtPx(front, e.base + e.h - 1), floor = tileAt(Math.floor(front / T), Math.floor((e.base + e.h + 6) / T));
-      if (wall || (!solid(floor) && floor !== "-") || (e.vx < 0 && nx < e.minX)) e.vx = -e.vx; else e.x = nx;
-      e.y = e.base + Math.sin(e.t * 2.4) * 2; if (e.sq > 0) e.sq--;
+      bubbleDrift(e); if (e.sq > 0) e.sq--;
     }
     else {
       if (Math.abs(e.x - pl.x) > SW) continue;
