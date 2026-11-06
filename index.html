@@ -2250,7 +2250,7 @@ let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clo
 const breath = new CatBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
 const hudFlame = new P.Flame({ height: 12, width: 3.5, speed: 2.8, rough: 1, swayAmp: 2, bits: 0 });
-function resetPlayer(at) { pl = { x: at.x, y: at.y - 16, w: 20, h: 16, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jbuf: 0, inv: 0, fire: 100, over: false, regen: 0, breathing: false, anim: "idle", af: 0, idleT: 0, bumpT: 0, landT: 0, holdT: 0, turnT: 0, turnFrom: 1, mana: 100, manaWait: 0, zapCD: 0, zapT: 0, swim: false, charge: 0, freezeCD: 0 }; }
+function resetPlayer(at) { pl = { x: at.x, y: at.y - 16, w: 20, h: 16, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jbuf: 0, inv: 0, fire: 100, over: false, regen: 0, breathing: false, anim: "idle", af: 0, idleT: 0, bumpT: 0, landT: 0, holdT: 0, turnT: 0, turnFrom: 1, mana: 100, manaWait: 0, zapCD: 0, zapT: 0, zapBuf: 0, swim: false, charge: 0, freezeCD: 0 }; }
 function newGame(key = who) { who = key; setPowerButton(); falling = []; shatterQ = []; bolt = null; buildLevel(key); resetPlayer(ents.start); herbGot = 0; clock = 0; parts = []; winT = 0; breath.a.fill(0); cam = 0; msg = null; }
 const say = (text, c) => (msg = { text, c, t: 110 });
 
@@ -2426,38 +2426,48 @@ function updateFalling() {
 }
 
 // ---------- Volt: instant lightning, 4 mana pips ----------
+const ZAP_CD = 5; // ~0.08 s between zaps: as fast as you can tap
 const MANA = 100, ZAP_COST = 25, MANA_REGEN = 25 / 72, MANA_WAIT = 30, BOLT_LEN = 150; // a zap is instant and costs a quarter of the bar; the bar refills smoothly
 function updateVolt() {
   pl.breathing = false;
   if (pl.zapCD > 0) pl.zapCD--;
   if (pl.manaWait > 0) pl.manaWait--; else pl.mana = Math.min(MANA, pl.mana + MANA_REGEN);
+  if (pl.zapBuf > 0) pl.zapBuf--;
   if (pressed.fire) {
     const m = mouthPos();
     if (pl.swim) { for (let i = 0; i < 3; i++) P_({ x: m[0], y: m[1], vx: pl.face * Math.random(), vy: -Math.random(), max: 12, type: "drop" }); }
-    else if (pl.mana >= ZAP_COST && pl.zapCD === 0) zap();
     else if (pl.mana < ZAP_COST) for (let i = 0; i < 3; i++) P_({ x: m[0], y: m[1], vx: pl.face * Math.random(), vy: -Math.random(), max: 12, type: "spark" });
+    else pl.zapBuf = 10; // remember the press; it fires as soon as the short cooldown allows
   }
+  if (pl.zapBuf > 0 && pl.zapCD === 0 && !pl.swim && pl.mana >= ZAP_COST) { pl.zapBuf = 0; zap(); }
 }
 const alive = (e) => e.st === "roll" || e.st === "fly";
 function poof(e) { e.st = "poof"; e.dt = 0; for (let i = 0; i < 10; i++) P_({ x: e.x + e.w / 2, y: e.y + e.h / 2, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 2.5, max: 24, type: e.type === "dust" ? "fluff" : e.type === "snow" ? "snow" : "flake" }); }
 function hitFoe(e) { if (e.type === "spool") stick(e, "spool"); else poof(e); }
 // a zapped spool clamps to the floor (magnetised) and a frozen bubble drops as an ice ball: both become a step for 15 s
 function stick(e, kind) {
-  const tx = Math.round((e.x + e.w / 2 - 8) / T); let ty = Math.floor((e.y + e.h - 1) / T);
-  while (ty < ROWS - 1 && !solid(tileAt(tx, ty + 1)) && tileAt(tx, ty + 1) !== "-") ty++;
-  const box = { x: tx * T, y: ty * T, w: T, h: T };
-  if (tileAt(tx, ty) !== "." || overlap(pl, box)) { for (let i = 0; i < 5; i++) P_({ x: e.x + e.w / 2, y: e.y + 4, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 1.5, max: 16, type: kind === "spool" ? "spark" : "flake" }); return; }
+  // clamp onto the tile it is over; if that tile is taken or the cat stands in it, use the nearest free tile just beyond her
+  const tx0 = Math.round((e.x + e.w / 2 - 8) / T), away = Math.sign(e.x + e.w / 2 - (pl.x + pl.w / 2)) || pl.face;
+  let tx = tx0, ty = 0, box = null;
+  for (const cand of [tx0, tx0 + away, tx0 + 2 * away]) {
+    let yy = Math.floor((e.y + e.h - 1) / T); while (yy < ROWS - 1 && !solid(tileAt(cand, yy + 1)) && tileAt(cand, yy + 1) !== "-") yy++;
+    const bx = { x: cand * T, y: yy * T, w: T, h: T };
+    if (tileAt(cand, yy) === "." && !overlap(pl, bx)) { tx = cand; ty = yy; box = bx; break; }
+  }
+  if (!box) { for (let i = 0; i < 5; i++) P_({ x: e.x + e.w / 2, y: e.y + 4, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 1.5, max: 16, type: kind === "spool" ? "spark" : "flake" }); return; }
   tiles[ty][tx] = "S"; e.st = "frozen"; ents.frozen.push({ tx, ty, t: 900, e });
   for (let i = 0; i < 8; i++) P_({ x: tx * T + 8, y: ty * T + 8, vx: (Math.random() - 0.5) * 2.5, vy: -Math.random() * 2, max: 20, type: kind === "spool" ? "spark" : "flake" });
 }
 function zap() {
-  pl.mana -= ZAP_COST; pl.zapCD = 12; pl.zapT = 14; pl.manaWait = MANA_WAIT; flash = 2;
+  pl.mana -= ZAP_COST; pl.zapCD = ZAP_CD; pl.zapT = 14; pl.manaWait = MANA_WAIT; flash = 2;
   const [mx, my] = mouthPos(), dir = pl.face; let ex = mx + dir * BOLT_LEN; const chains = [];
-  for (let d = 4; d <= BOLT_LEN; d += 2) {
+  // the bolt is checked from the middle of his head (so things right at his face count) along a band as thick as it looks
+  const back = Math.max(0, (mx - (pl.x + pl.w / 2)) * dir), BAND = 9, inBand = (b, pad) => my >= b.y - BAND && my < b.y + b.h + BAND;
+  for (let d = -back; d <= BOLT_LEN; d += 2) {
     const x = mx + dir * d, tx = Math.floor(x / T), ty = Math.floor(my / T), c = tileAt(tx, ty);
-    if (c === "I") { shatterFrom(tx, ty); ex = x; break; }
-    if (solid(c)) { ex = x; if (c === "G") for (let i = 0; i < 5; i++) P_({ x, y: my, vx: -dir * Math.random() * 2, vy: (Math.random() - 0.5) * 2, max: 14, type: "spark" }); break; }
-    const e = ents.foes.find((e) => alive(e) && x >= e.x - 1 && x < e.x + e.w + 1 && my >= e.y - 7 && my < e.y + e.h + 4);
+    if (d >= 0 && c === "I") { shatterFrom(tx, ty); ex = x; break; }
+    if (d >= 0 && solid(c) && c !== "S") { ex = x; if (c === "G") for (let i = 0; i < 5; i++) P_({ x, y: my, vx: -dir * Math.random() * 2, vy: (Math.random() - 0.5) * 2, max: 14, type: "spark" }); break; } // clamped spools / ice balls let it through
+    const e = ents.foes.find((e) => alive(e) && x >= e.x - 2 && x < e.x + e.w + 2 && inBand(e));
     if (e) {
       ex = x; hitFoe(e); let from = e;
       for (let k = 0; k < 2; k++) {
@@ -2467,11 +2477,12 @@ function zap() {
       }
       break;
     }
-    const n = ents.nodes.find((n) => !n.on && inBox(x, my, n, 2));
+    const n = ents.nodes.find((n) => !n.on && x >= n.x - 2 && x < n.x + n.w + 2 && inBand(n));
     if (n) { n.on = true; ex = x; if (n.gate && !n.gate.open) { n.gate.open = true; n.gate.t = 0; } say("POWER ON", [140, 255, 160]); break; }
-    const b = ents.beacons.find((b) => !b.lit && inBox(x, my, b, 2)); if (b) { wake(b); ex = x; break; }
+    const b = ents.beacons.find((b) => !b.lit && x >= b.x - 2 && x < b.x + b.w + 2 && inBand(b)); if (b) { wake(b); ex = x; break; }
     if (ents.goal && !ents.goal.lit && inBox(x, my, ents.goal)) { feed(ents.goal, 1 / 3, 3); ex = x; break; }
   }
+  if ((ex - mx) * dir < 8) ex = mx + dir * 8; // a point-blank hit still shows a short spark of bolt
   bolt = { x0: mx, y0: my, x1: ex, y1: my, chains, t: 10, seed: 1 };
   for (let i = 0; i < 8; i++) P_({ x: ex, y: my, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.8) * 2.5, max: 18, type: "spark" });
 }
