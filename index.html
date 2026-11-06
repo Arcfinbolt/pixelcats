@@ -2196,7 +2196,7 @@ function buildLevel(key) {
       if (key === "volt") ents.goal = { type: "generator", x: wx - 10, y: ground - 64, w: 36, h: 64, lit: false };
       if (key === "frost") ents.goal = { type: "bigFountain", x: wx - 16, y: ground - 64, w: 48, h: 64, lit: false };
     } else if (c === "n") ents.nodes.push({ x: wx + 1, y: ground - 16, w: 14, h: 16, on: false, gate: null });
-    else if (c === "v") ents.vents.push({ x: wx - 1, y: ground - 5, t: (x * 37 + 67) % 150 }); // phase chosen so the first vent puffs just as a fast run arrives
+    else if (c === "v") ents.vents.push({ x: wx - 1, y: ground - 5, t: (x * 37 + 7) % 150 }); // phase: the first vent puffs about 1 s after a fast run arrives
     if (c === "I") iceHp.set(y * LW + x, 0);
     if ("Pfsdtwcnv L".includes(c)) tiles[y][x] = ".";
   }
