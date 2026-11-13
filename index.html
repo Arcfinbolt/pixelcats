@@ -2313,7 +2313,7 @@ const powerBtn = document.getElementById("powerBtn");
 function setPowerButton() { const c = INFO[who].col; powerBtn.textContent = { ember: "FIRE", volt: "ZAP", frost: "FREEZE" }[who]; powerBtn.style.setProperty("--pc", `rgb(${c[0]},${c[1]},${c[2]})`); }
 for (const btn of document.querySelectorAll(".acts button")) {
   const k = btn.dataset.k;
-  const on = (e) => { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} btn.classList.add("on"); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; if (k === "jump") pressed.start = 1; };
+  const on = (e) => { e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch (_) {} btn.classList.add("on"); if (!keys[k] && edge(k)) pressed[k] = 1; keys[k] = 1; if (k === "jump" || k === "fire") pressed.start = 1; }; // on phones both buttons start the game
   const off = (e) => { e.preventDefault(); btn.classList.remove("on"); keys[k] = 0; };
   btn.addEventListener("pointerdown", on); btn.addEventListener("pointerup", off); btn.addEventListener("pointercancel", off); btn.addEventListener("lostpointercapture", off);
 }
