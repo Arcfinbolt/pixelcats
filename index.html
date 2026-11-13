@@ -2236,8 +2236,7 @@ const SND = (() => {
   const loaded = (name) => !ac || name in bufs || !AU.music[name]; // decoded, failed, or no audio at all
   return { force: null, loaded, init, sfx, hold, music, duck, cycle, swap, seam, AU, get mode() { return mode; }, get ctx() { return ac; }, get playing() { return cur && cur.name; } };
 })();
-let gestured = false; // the browser keeps audio muted until the first key or tap
-for (const ev of ["keydown", "pointerdown", "touchend"]) addEventListener(ev, (e) => { if (!(e.target && e.target.closest && e.target.closest("#lab, #labBtn"))) gestured = true; SND.init(); }, { capture: true });
+for (const ev of ["keydown", "pointerdown", "touchend"]) addEventListener(ev, () => SND.init(), { capture: true }); // the first key or tap resumes audio (browsers keep it muted until then)
 addEventListener("keydown", (e) => { if (e.code === "KeyM" && !e.repeat && !(e.target && e.target.closest && e.target.closest("#lab"))) SND.cycle(); });
 
 // ---------- level ----------
@@ -2361,8 +2360,7 @@ function pickEmberTrack() {
   return Math.random() < 0.25 ? "ember_alt" : "ember";
 }
 function unlockAll() { if (unlocked) return; unlocked = true; firstUnlock = true; try { localStorage.setItem(SAVE_KEY, "1"); } catch (_) {} }
-let bootT = 0;
-let pl, cam = 0, state = "boot", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
+let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
 const breath = new CatBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
 const hudFlame = new P.Flame({ height: 12, width: 3.5, speed: 2.8, rough: 1, swayAmp: 2, bits: 0 });
@@ -2977,10 +2975,6 @@ function buildScenes() { // composite sky, layers and ground of each level into 
   }
 }
 function blitScaled2(src, sx, sy, dim) { for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) { const c = src.px[y * src.w + x]; if (!(c >>> 24)) continue; const cc = dim ? (0xff000000 | ((((c >> 16) & 255) * 0.62 + 10) << 16) | ((((c >> 8) & 255) * 0.6 + 8) << 8) | ((c & 255) * 0.62 + 14)) >>> 0 : c; for (let k = 0; k < 4; k++) { const X = sx + x * 2 + (k & 1), Y = sy + y * 2 + (k >> 1); if (X >= 0 && Y >= 0 && X < SW && Y < SH) fb.px[Y * SW + X] = cc; } } }
-function bootScreen() { // deliberately plain: solid background, one small still line of text
-  fb.px.fill(P.col([27, 20, 32]));
-  centerText(TOUCH ? "TAP TO START" : "PRESS ANY KEY", SW / 2, SH / 2 - 3, [185, 170, 180]);
-}
 function centerText(s, cx, y, c, sc = 1, shadow) { const x = Math.round(cx - (s.length * 4 * sc) / 2); if (shadow) P.text(fb, x + sc / 2 + 0.5 | 0, y + 1, s, shadow, sc); P.text(fb, x, y, s, c, sc); }
 function tint(a, c) { const d = fb.px; for (let i = 0; i < d.length; i++) { const p = d[i]; d[i] = (0xff000000 | ((((p >> 16) & 255) * (1 - a) + c[2] * a) << 16) | ((((p >> 8) & 255) * (1 - a) + c[1] * a) << 8) | ((p & 255) * (1 - a) + c[0] * a)) >>> 0; } }
 function frameRect(x0, y0, x1, y1, c) { fb.rect(x0, y0, x1, y0 + 1, c); fb.rect(x0, y1 - 1, x1, y1, c); fb.rect(x0, y0, x0 + 1, y1, c); fb.rect(x1 - 1, y0, x1, y1, c); }
@@ -3084,10 +3078,7 @@ function picker() {
 // ---------- loop ----------
 function step() {
   frame++; t += 1 / 60;
-  if (state === "boot") { // start screen: the first key or tap unmutes audio (browsers require it), then the title opens
-    bootT++; pl.idleT = 300; pl.anim = "sit"; pl.af += 0.07;
-    if (gestured || pressed.start || tapAt) { state = "title"; pickT = 0; } // if the title music is still downloading it fades in when it arrives
-  } else if (state === "title") {
+  if (state === "title") {
     pl.idleT = 300; pl.anim = "sit"; pl.af += 0.07;
     let pick = -1, go = pressed.start;
     if (pressed.left || pressed.right) { const d = pressed.left ? -1 : 1, cur = CATS.indexOf(who); let i = cur;
@@ -3123,16 +3114,15 @@ function step() {
     if ((pressed.start || tapAt) && winT > 160) { newGame(who); state = "title"; if (firstUnlock) { firstUnlock = false; unlockT = 1; } } // newGame resets winT; nothing may touch it after
   }
   if (state !== "play") { SND.hold("breath", false); SND.hold("charge", false); }
-  SND.music(SND.force || (state === "boot" ? null : state === "title" ? "title" : winT > 0 || state === "win" ? "victory" : who === "ember" ? emberTrack : who));
+  SND.music(SND.force || (state === "title" ? "title" : winT > 0 || state === "win" ? "victory" : who === "ember" ? emberTrack : who));
   updateParts();
   const gl2 = ents.goal, target = winT > 0 && gl2 ? (pl.x + gl2.x + gl2.w / 2) / 2 + 5 - SW / 2 : pl.x + 10 - SW / 2 + pl.face * 36;
   cam += (target - cam) * (snapCam ? 1 : 0.08); cam = Math.max(0, Math.min(LWpx - SW, cam)); snapCam = false;
-  if (state === "title" || state === "boot") { titleCam += 0.35; cam = Math.abs(((titleCam / (LWpx - SW)) % 2) - 1) * (LWpx - SW); } // slow pan back and forth across her level
+  if (state === "title") { titleCam += 0.35; cam = Math.abs(((titleCam / (LWpx - SW)) % 2) - 1) * (LWpx - SW); } // slow pan back and forth across her level
   const save = cam; cam = Math.round(cam);
   render();
   const I = INFO[who];
   if (state === "title") picker();
-  if (state === "boot") bootScreen();
   if (state === "win") { const all = herbGot === ents.herbs.length; panel([["ALL DONE", 2, I.col], ...(firstUnlock ? [["VOLT AND FROST UNLOCKED", 1, [180, 255, 170]]] : []), [all ? "ALL CATNIP FOUND" : "CATNIP " + herbGot + "/" + ents.herbs.length, 1, all ? [180, 255, 170] : [255, 240, 225]], [I.beacon + " " + ents.beacons.filter((b) => b.lit).length + "/3   TIME " + clock.toFixed(1) + " SECONDS", 1, [230, 220, 230]], ["PRESS Z TO PICK A CAT", 1, [255, 230, 180]]], 6); }
   cam = save;
   pressed.jump = 0; pressed.start = 0; pressed.fire = 0; pressed.left = 0; pressed.right = 0; tapAt = null;
