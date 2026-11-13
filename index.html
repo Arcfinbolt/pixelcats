@@ -2348,13 +2348,13 @@ const SAVE_KEY = "pixelcats.unlocked";
 let unlocked = false; try { unlocked = localStorage.getItem(SAVE_KEY) === "1"; } catch (_) {}
 let firstUnlock = false, unlockT = 0; const shakeT = [0, 0, 0];
 const locked = (k) => k !== "ember" && !unlocked;
-// Ember's level has two soundtracks: always the main one until her level is first won, then the alternate is guaranteed once, then it comes up 1 time in 5
+// Ember's level has two soundtracks: always the main one until her level is first won, then the alternate is guaranteed once, then it comes up 1 time in 4
 const EMBER_ALT_KEY = "pixelcats.emberAltHeard.v2"; // renamed when the alternate track changed, so its guaranteed first play happens again let emberTrack = "ember";
 function pickEmberTrack() {
   if (!unlocked || !A.audio || !A.audio.music.ember_alt) return "ember";
   let heard = false; try { heard = localStorage.getItem(EMBER_ALT_KEY) === "1"; } catch (_) {}
   if (!heard) { try { localStorage.setItem(EMBER_ALT_KEY, "1"); } catch (_) {} return "ember_alt"; }
-  return Math.random() < 0.2 ? "ember_alt" : "ember";
+  return Math.random() < 0.25 ? "ember_alt" : "ember";
 }
 function unlockAll() { if (unlocked) return; unlocked = true; firstUnlock = true; try { localStorage.setItem(SAVE_KEY, "1"); } catch (_) {} }
 let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
