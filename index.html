@@ -2158,15 +2158,19 @@ class CatBreath extends P.Breath {
     }
     this.seed = sd; this.active = any;
   }
-  // The flame is a stream, not a sticker: each ring of the heat grid remembers where the mouth was, and which way it pointed,
-  // when that ring left it (row r left about r/2 frames ago at 2 steps per frame). Old flame keeps flying where it was aimed
-  // when Ember jumps or turns; only the fresh flame follows her head.
+  // How the flame moves with Ember. Each ring of the heat grid left her mouth about r/2 frames ago (2 steps a frame); it
+  // remembers where the mouth was and which way it pointed then. Sideways the flame streams (followX 1: rings keep flying from
+  // where they left); up and down it stays on her mouth (followY 0), so jumping and landing never bend it into a hook.
+  // Rings breathed before a turn always stay where they were aimed.
   prepare(hx, hy, aA, aB, t, open) {
     const V = this.V, R = this.ROWS, mid = (aA + aB) / 2, half = ((aB - aA) / 2) * (0.25 + 0.75 * open) * (V - 1) / (V - 19);
-    this.dA = (half * 2) / (V - 1); this.idA = 1 / this.dA; const lo = mid - half;
+    this.dA = (half * 2) / (V - 1); this.idA = 1 / this.dA; const lo = mid - half, fx = this.followX ?? 1, fy = this.followY ?? 0;
     if (!this.rx) { this.rx = new Float32Array(R); this.ry = new Float32Array(R); this.rlo = new Float32Array(R); this.hist = []; }
     this.hist.unshift([hx, hy, lo]); if (this.hist.length > (R >> 1) + 2) this.hist.length = (R >> 1) + 2;
-    for (let r = 0; r < R; r++) { const h = this.hist[Math.min(this.hist.length - 1, r >> 1)]; this.rx[r] = h[0]; this.ry[r] = h[1]; this.rlo[r] = h[2]; }
+    for (let r = 0; r < R; r++) {
+      const h = this.hist[Math.min(this.hist.length - 1, r >> 1)], turned = Math.abs(h[2] - lo) > 1;
+      this.rx[r] = hx + (h[0] - hx) * (turned ? 1 : fx); this.ry[r] = hy + (h[1] - hy) * (turned ? 1 : fy); this.rlo[r] = h[2];
+    }
     this.hx = hx; this.hy = hy;
     for (let k = 0; k < this.LMAX; k++) this.wind[k] = Math.sin(k * 0.06 - t * 7) * (1 + k * 0.02) - this.rlo[k >> 1] * this.idA;
   }
@@ -2184,26 +2188,24 @@ class CatBreath extends P.Breath {
       }
     }
   }
-  drawTo(buf, floor) {
+  drawTo(buf, floor) { // forward: every cell of the heat grid is placed from its own ring's origin, so any mix of origins draws cleanly
     if (!this.active || !this.rx) return;
-    const LMAX = this.LMAX, V = this.V, R = this.ROWS, a = this.a, pal = this.pal, idA = this.idA, TAU = Math.PI * 2, rx = this.rx, ry = this.ry, rlo = this.rlo;
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity; for (let r = 0; r < R; r++) { if (rx[r] < x0) x0 = rx[r]; if (rx[r] > x1) x1 = rx[r]; if (ry[r] < y0) y0 = ry[r]; }
-    const I0 = Math.max(0, Math.floor(x0 - LMAX) - buf.ox), I1 = Math.min(buf.w - 1, Math.ceil(x1 + LMAX) - buf.ox);
-    const J0 = Math.max(0, Math.floor(y0 - LMAX) - buf.oy), J1 = Math.min(buf.h - 1, floor - buf.oy);
-    for (let j = J0; j <= J1; j++) {
-      const Y = j + buf.oy + 0.5;
-      for (let i = I0; i <= I1; i++) {
-        const X = i + buf.ox + 0.5;
-        // which ring is this pixel in? guess from the current mouth, then measure again from that ring's own origin (twice settles it)
-        let dx = X - this.hx, dy = Y - this.hy, k = Math.sqrt(dx * dx + dy * dy) | 0;
-        for (let it = 0; it < 2; it++) { const r = Math.min(R - 1, k >> 1); dx = X - rx[r]; dy = Y - ry[r]; k = Math.sqrt(dx * dx + dy * dy) | 0; }
-        if (k < 2 || k >= LMAX) continue;
-        let th = Math.atan2(dy, dx); if (rlo[k >> 1] > Math.PI / 2 && th < 0) th += TAU;
-        const uu = th * idA + this.wind[k]; if (uu < 0 || uu >= V) continue;
-        const I = a[(k >> 1) * V + (uu | 0)]; if (I >= 5) buf.px[j * buf.w + i] = pal[I];
+    const LMAX = this.LMAX, V = this.V, R = this.ROWS, a = this.a, pal = this.pal, dA = this.dA, W = this.wind, w = buf.w, h = buf.h;
+    const heat = this.heat && this.heat.length === w * h ? this.heat : (this.heat = new Uint8Array(w * h)); heat.fill(0);
+    const fy = floor - buf.oy;
+    for (let k = 2; k < LMAX; k++) {
+      const r = k >> 1, ox = this.rx[r] - buf.ox, oy = this.ry[r] - buf.oy, row = r * V, wk = W[k];
+      for (let v = 0; v < V; v++) {
+        const I = a[row + v]; if (I < 5) continue;
+        const th = (v + 0.5 - wk) * dA, X = (ox + Math.cos(th) * k) | 0, Y = (oy + Math.sin(th) * k) | 0;
+        if (X < 0 || Y < 0 || X >= w || Y >= h || Y > fy) continue;
+        const q = Y * w + X; if (I > heat[q]) heat[q] = I;
       }
     }
+    for (let q = 0; q < heat.length; q++) if (heat[q]) buf.px[q] = pal[heat[q]];
   }
+
+
 }
 
 // ---------- sound: WebAudio, started by the first key or tap; M (or the speaker on the title screen) cycles all on / music off / all off ----------
@@ -3163,7 +3165,7 @@ function loop(now) {
   out32.set(fb.px); ctx.putImageData(img, 0, 0);
   requestAnimationFrame(loop);
 }
-window.__ember = { get unlocked() { return unlocked; }, set unlocked(v) { unlocked = v; try { localStorage.setItem(SAVE_KEY, v ? "1" : "0"); } catch (_) {} }, get unlockT() { return unlockT; }, get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; }, snd: SND, get emberTrack() { return emberTrack; }, G, set cam(v) { cam = v; }, get LWpx() { return LWpx; } };
+window.__ember = { get unlocked() { return unlocked; }, set unlocked(v) { unlocked = v; try { localStorage.setItem(SAVE_KEY, v ? "1" : "0"); } catch (_) {} }, get unlockT() { return unlockT; }, get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; }, breath, snd: SND, get emberTrack() { return emberTrack; }, G, set cam(v) { cam = v; }, get LWpx() { return LWpx; } };
 SND.init(); // create the (suspended) audio context now so every sound is decoded before the first key press; the first gesture resumes it
 load().then(() => { newGame("ember"); try { window.focus(); } catch (e) {} requestAnimationFrame(loop); });
 })();
