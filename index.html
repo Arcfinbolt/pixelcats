@@ -2144,6 +2144,57 @@ async function load() {
 }
 
 // ---------- Ember's breath: Codixel's Breath heat grid, shorter reach (cooling), clipped at walls ----------
+class ClassicBreath extends P.Breath { // the original flame: drawn relative to Ember's mouth every frame
+  constructor(o) { super(o); this.cool = o.cool; this.active = 0; }
+  step(on = true, steps = 3) {
+    const a = this.a, V = this.V, ROWS = this.ROWS; let sd = this.seed, any = 0;
+    const rnd = () => { sd ^= sd << 13; sd ^= sd >>> 17; sd ^= sd << 5; return (sd >>> 0) / 4294967296; };
+    for (let s = 0; s < steps; s++) {
+      for (let v = 0; v < V; v++) { const e = Math.min(v - 16, V - 17 - v); a[v] = on && e >= 0 ? Math.max(0, Math.min(36, 22 + e * 1.4) - (rnd() < 0.15 ? 8 : 0)) : 0; }
+      for (let k = ROWS - 1; k >= 1; k--) {
+        const up = (k + s) & 1, o = k * V, ip = o - V;
+        for (let q = 0; q < V; q++) { const v = up ? q : V - 1 - q, src = a[ip + v], r = rnd() * 3, ri = r | 0, nv = v + ri - 1; if (nv < 0 || nv >= V) continue; const dec = r - ri < this.cool ? 1 : 0; const nvv = src > dec ? src - dec : 0; a[o + nv] = nvv; any |= nvv; }
+      }
+    }
+    this.seed = sd; this.active = any;
+  }
+  prepare(hx, hy, aA, aB, t, open) {
+    const V = this.V, mid = (aA + aB) / 2, half = ((aB - aA) / 2) * (0.25 + 0.75 * open) * (V - 1) / (V - 19);
+    this.hx = hx; this.hy = hy; this.dA = (half * 2) / (V - 1); this.lo = mid - half; this.idA = 1 / this.dA;
+    for (let k = 0; k < this.LMAX; k++) this.wind[k] = Math.sin(k * 0.06 - t * 7) * (1 + k * 0.02) - this.lo * this.idA;
+  }
+  collide(hit) {
+    if (!this.active) return;
+    const a = this.a, V = this.V, R = this.ROWS;
+    for (let v = 0; v < V; v++) {
+      let blocked = false;
+      for (let r = 1; r < R; r++) {
+        const i = r * V + v; if (!a[i] && !blocked) continue;
+        if (blocked) { a[i] = 0; continue; }
+        const k = 2 * r + 1, th = (v + 0.5 - this.wind[k]) * this.dA, px = this.hx + Math.cos(th) * k, py = this.hy + Math.sin(th) * k;
+        if (hit(px, py, a[i])) { blocked = true; a[i] = 0; }
+      }
+    }
+  }
+  drawTo(buf, floor) {
+    if (!this.active) return;
+    const LMAX = this.LMAX, V = this.V, a = this.a, pal = this.pal, hx = this.hx, hy = this.hy, idA = this.idA, lo = this.lo, TAU = Math.PI * 2;
+    const I0 = Math.max(0, Math.floor(hx - LMAX) - buf.ox), I1 = Math.min(buf.w - 1, Math.ceil(hx + LMAX) - buf.ox);
+    const J0 = Math.max(0, Math.floor(hy - LMAX) - buf.oy), J1 = Math.min(buf.h - 1, floor - buf.oy);
+    for (let j = J0; j <= J1; j++) {
+      const dy = j + buf.oy + 0.5 - hy;
+      for (let i = I0; i <= I1; i++) {
+        const dx = i + buf.ox + 0.5 - hx, k = Math.sqrt(dx * dx + dy * dy) | 0;
+        if (k < 2 || k >= LMAX) continue;
+        let th = Math.atan2(dy, dx); if (lo > Math.PI / 2 && th < 0) th += TAU;
+        const uu = th * idA + this.wind[k]; if (uu < 0 || uu >= V) continue;
+        const I = a[(k >> 1) * V + (uu | 0)]; if (I >= 5) buf.px[j * buf.w + i] = pal[I];
+      }
+    }
+  }
+  reset() { this.a.fill(0); }
+}
+
 class CatBreath extends P.Breath {
   constructor(o) { super(o); this.cool = o.cool; this.active = 0; }
   step(on = true, steps = 3) {
@@ -2388,7 +2439,8 @@ function pickEmberTrack() {
 }
 function unlockAll() { if (unlocked) return; unlocked = true; firstUnlock = true; try { localStorage.setItem(SAVE_KEY, "1"); } catch (_) {} }
 let pl, cam = 0, state = "title", t = 0, frame = 0, parts = [], herbGot = 0, clock = 0, winT = 0, msg = null, bolt = null, flash = 0, shatterQ = [], falling = [];
-const breath = new CatBreath({ length: 130, cool: 0.7 });
+const FLAME_STREAM = false; // the public site builds with the original flame for now
+const breath = FLAME_STREAM ? new CatBreath({ length: 130, cool: 0.7 }) : new ClassicBreath({ length: 130, cool: 0.7 });
 const tailFlame = new P.Flame({ height: 8, width: 2.6, speed: 2.8, rough: 1, swayAmp: 2, bits: 0.2 });
 const hudFlame = new P.Flame({ height: 12, width: 3.5, speed: 2.8, rough: 1, swayAmp: 2, bits: 0 });
 function resetPlayer(at) { pl = { x: at.x, y: at.y - 16, w: 20, h: 16, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jbuf: 0, inv: 0, fire: 100, over: false, regen: 0, breathing: false, anim: "idle", af: 0, idleT: 0, bumpT: 0, landT: 0, holdT: 0, turnT: 0, turnFrom: 1, mana: 100, manaWait: 0, zapCD: 0, zapT: 0, zapBuf: 0, swim: false, charge: 0, freezeCD: 0 }; }
