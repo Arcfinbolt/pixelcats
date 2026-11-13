@@ -2437,7 +2437,7 @@ function updatePlayer() {
   if (pl.inv > 0) pl.inv--;
   // water: fall in, swim, climb out only onto a low shore
   const cx = pl.x + pl.w / 2;
-  if (!pl.swim && !pl.ground && pl.vy > 0 && waterAtPx(cx, pl.y + pl.h - 2)) { pl.swim = true; pl.vy *= 0.3; splash(cx, 16); SND.sfx("splash"); breath.a.fill(0); pl.charge = 0; }
+  if (!pl.swim && !pl.ground && pl.vy > 0 && waterAtPx(cx, pl.y + pl.h - 2)) { pl.swim = true; pl.vy *= 0.3; splash(cx, 16); SND.sfx("splash"); breath.a.fill(0); } // Ember's flame goes out in water; Frost keeps her charge
   if (pl.swim) {
     if (pl.hitWall) { const tx = pl.wallTx; if (solid(tileAt(tx, 12)) && !solid(tileAt(tx, 11))) { climbOut(pl.hitWall); } }
     else if (!waterAtPx(cx, WTOP + 4) && !waterAtPx(pl.x + 2, WTOP + 4) && !waterAtPx(pl.x + pl.w - 2, WTOP + 4)) pl.swim = false;
