@@ -1,4 +1,4 @@
-# Ember · Volt · Frost
+# Ember the Fire Cat
 
 A gentle pixel-art platformer with three cats, each with her own level:
 
