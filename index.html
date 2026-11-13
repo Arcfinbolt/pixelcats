@@ -2352,7 +2352,8 @@ let unlocked = false; try { unlocked = localStorage.getItem(SAVE_KEY) === "1"; }
 let firstUnlock = false, unlockT = 0; const shakeT = [0, 0, 0];
 const locked = (k) => k !== "ember" && !unlocked;
 // Ember's level has two soundtracks: always the main one until her level is first won, then the alternate is guaranteed once, then it comes up 1 time in 4
-const EMBER_ALT_KEY = "pixelcats.emberAltHeard.v2"; // renamed when the alternate track changed, so its guaranteed first play happens again let emberTrack = "ember";
+// the key was renamed when the alternate track changed, so its guaranteed first play happens again
+const EMBER_ALT_KEY = "pixelcats.emberAltHeard.v2"; let emberTrack = "ember";
 function pickEmberTrack() {
   if (!unlocked || !A.audio || !A.audio.music.ember_alt) return "ember";
   let heard = false; try { heard = localStorage.getItem(EMBER_ALT_KEY) === "1"; } catch (_) {}
@@ -3138,7 +3139,7 @@ function loop(now) {
   out32.set(fb.px); ctx.putImageData(img, 0, 0);
   requestAnimationFrame(loop);
 }
-window.__ember = { get unlocked() { return unlocked; }, set unlocked(v) { unlocked = v; try { localStorage.setItem(SAVE_KEY, v ? "1" : "0"); } catch (_) {} }, get unlockT() { return unlockT; }, get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; }, snd: SND, get emberTrack() { return emberTrack; } };
+window.__ember = { get unlocked() { return unlocked; }, set unlocked(v) { unlocked = v; try { localStorage.setItem(SAVE_KEY, v ? "1" : "0"); } catch (_) {} }, get unlockT() { return unlockT; }, get pl() { return pl; }, get state() { return state; }, set state(v) { state = v; }, keys, pressed, step, get ents() { return ents; }, get who() { return who; }, newGame, tile: (x, y) => tileAt(x, y), iceHp, present: () => { out32.set(fb.px); ctx.putImageData(img, 0, 0); }, pause: (v) => { paused = v; }, catFrame: () => catFrame(), drawFace: () => drawFace(), get bolt() { return bolt; }, snd: SND, get emberTrack() { return emberTrack; }, G, set cam(v) { cam = v; }, get LWpx() { return LWpx; } };
 SND.init(); // create the (suspended) audio context now so every sound is decoded before the first key press; the first gesture resumes it
 load().then(() => { newGame("ember"); try { window.focus(); } catch (e) {} requestAnimationFrame(loop); });
 })();
