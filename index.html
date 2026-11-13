@@ -2194,8 +2194,8 @@ const SND = (() => {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     ac = new AC(); const comp = ac.createDynamicsCompressor(); comp.connect(ac.destination);
     sfxBus = ac.createGain(); musBus = ac.createGain(); sfxBus.connect(comp); musBus.connect(comp); apply();
-    for (const [k, s] of Object.entries(AU.sfx)) get(k, s.url);
-    if (AU.music.title) get("title", AU.music.title.url); // the start screen waits for this one
+    const fx = () => { for (const [k, s] of Object.entries(AU.sfx)) get(k, s.url); };
+    if (AU.music.title) get("title", AU.music.title.url).then(fx); else fx(); // title music first, so it is ready by the first press even on a slow connection
     if (want) { const w = want; want = null; music(w); }
   }
   function sfx(name, vol = 1, rate = 1) {
@@ -2979,8 +2979,7 @@ function buildScenes() { // composite sky, layers and ground of each level into 
 function blitScaled2(src, sx, sy, dim) { for (let y = 0; y < src.h; y++) for (let x = 0; x < src.w; x++) { const c = src.px[y * src.w + x]; if (!(c >>> 24)) continue; const cc = dim ? (0xff000000 | ((((c >> 16) & 255) * 0.62 + 10) << 16) | ((((c >> 8) & 255) * 0.6 + 8) << 8) | ((c & 255) * 0.62 + 14)) >>> 0 : c; for (let k = 0; k < 4; k++) { const X = sx + x * 2 + (k & 1), Y = sy + y * 2 + (k >> 1); if (X >= 0 && Y >= 0 && X < SW && Y < SH) fb.px[Y * SW + X] = cc; } } }
 function bootScreen() { // deliberately plain: solid background, one small still line of text
   fb.px.fill(P.col([27, 20, 32]));
-  const ready = SND.loaded("title") || bootT > 600;
-  centerText(ready ? (TOUCH ? "TAP TO START" : "PRESS ANY KEY") : "LOADING", SW / 2, SH / 2 - 3, ready ? [185, 170, 180] : [110, 98, 112]);
+  centerText(TOUCH ? "TAP TO START" : "PRESS ANY KEY", SW / 2, SH / 2 - 3, [185, 170, 180]);
 }
 function centerText(s, cx, y, c, sc = 1, shadow) { const x = Math.round(cx - (s.length * 4 * sc) / 2); if (shadow) P.text(fb, x + sc / 2 + 0.5 | 0, y + 1, s, shadow, sc); P.text(fb, x, y, s, c, sc); }
 function tint(a, c) { const d = fb.px; for (let i = 0; i < d.length; i++) { const p = d[i]; d[i] = (0xff000000 | ((((p >> 16) & 255) * (1 - a) + c[2] * a) << 16) | ((((p >> 8) & 255) * (1 - a) + c[1] * a) << 8) | ((p & 255) * (1 - a) + c[0] * a)) >>> 0; } }
@@ -3085,9 +3084,9 @@ function picker() {
 // ---------- loop ----------
 function step() {
   frame++; t += 1 / 60;
-  if (state === "boot") { // start screen: wait until the title music is decoded and the player has pressed something (that press unmutes audio)
+  if (state === "boot") { // start screen: the first key or tap unmutes audio (browsers require it), then the title opens
     bootT++; pl.idleT = 300; pl.anim = "sit"; pl.af += 0.07;
-    if ((SND.loaded("title") || bootT > 600) && (gestured || pressed.start || tapAt)) { state = "title"; pickT = 0; }
+    if (gestured || pressed.start || tapAt) { state = "title"; pickT = 0; } // if the title music is still downloading it fades in when it arrives
   } else if (state === "title") {
     pl.idleT = 300; pl.anim = "sit"; pl.af += 0.07;
     let pick = -1, go = pressed.start;
