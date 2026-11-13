@@ -2186,7 +2186,7 @@ const SND = (() => {
   const AU = A.audio || { sfx: {}, music: {} }, bufs = {}, pend = {}, last = {}, holds = {};
   let ac = null, sfxBus, musBus, mode = 0, cur = null, want = null;
   try { mode = +(localStorage.getItem("pixelcats.sound") || 0) % 3; } catch (_) {}
-  const get = (name, url) => pend[name] || (pend[name] = fetch(url).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))).then((d) => (bufs[name] = d)).catch(() => null));
+  const get = (name, url) => pend[name] || (pend[name] = fetch(url, { cache: "no-cache" }).then((r) => r.arrayBuffer()).then((b) => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))).then((d) => (bufs[name] = d)).catch(() => null));
   const apply = () => { if (!ac) return; musBus.gain.setTargetAtTime(mode === 0 ? 1 : 0, ac.currentTime, 0.05); sfxBus.gain.setTargetAtTime(mode < 2 ? 1 : 0, ac.currentTime, 0.05); };
   function init() {
     if (ac) { if (ac.state === "suspended") ac.resume(); return; }
@@ -2324,7 +2324,9 @@ function buildLab(L) {
     for (const [slot, list] of Object.entries(L[kind])) {
       const r = document.createElement("div"); r.className = "r"; const lb = document.createElement("span"); lb.textContent = slot.replace(/_/g, " ");
       const s = document.createElement("select"); s.id = "lab-" + slot;
-      for (const c of list) { const o = document.createElement("option"); o.value = c.id; o.textContent = (c.id === L.defaults[slot] ? "● " : "") + c.label; s.append(o); }
+      const groups = {};
+      for (const c of list) { const o = document.createElement("option"); o.value = c.id; o.textContent = (c.id === L.defaults[slot] ? "● " : "") + c.label;
+        if (!c.group) { s.append(o); continue; } if (!groups[c.group]) { groups[c.group] = document.createElement("optgroup"); groups[c.group].label = c.group; s.append(groups[c.group]); } groups[c.group].append(o); }
       const apply = (id) => { const c = list.find((q) => q.id === id) || list[0]; s.value = c.id; s.classList.toggle("changed", c.id !== L.defaults[slot]); SND.swap(kind, slot, kind === "music" ? { url: c.url, loop: c.loop, loopStart: c.loopStart, loopEnd: c.loopEnd } : { url: c.url }); };
       s.onchange = () => { sel[slot] = s.value; try { localStorage.setItem(LKEY, JSON.stringify(sel)); } catch (_) {} SND.init(); apply(s.value); line(); if (kind === "sfx") setTimeout(() => SND.sfx(slot), 250); s.blur(); };
       const pv = document.createElement("button"); pv.type = "button"; pv.textContent = "▶";
@@ -2336,7 +2338,7 @@ function buildLab(L) {
   }
   line();
 }
-fetch("lab.json").then((r) => (r.ok ? r.json() : null)).then((L) => L && buildLab(L)).catch(() => {});
+fetch("lab.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).then((L) => L && buildLab(L)).catch(() => {});
 
 // ---------- state ----------
 const CAT = A.cat, BODYX = 21, FOOT = CAT.foot;
