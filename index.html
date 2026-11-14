@@ -2398,6 +2398,7 @@ function buildLab(L) {
   const btn = document.createElement("button"), box = document.createElement("div"); btn.id = "labBtn"; btn.type = "button"; btn.textContent = "SOUND LAB"; box.id = "lab"; box.hidden = true;
   btn.onclick = () => { box.hidden = !box.hidden; btn.textContent = box.hidden ? "SOUND LAB" : "CLOSE LAB"; box.style.paddingTop = bar.offsetHeight + 16 + "px"; cv.focus(); };
   const bar = document.createElement("div"); bar.id = "labBar"; document.body.append(bar, box);
+  const fitBar = () => { document.body.style.paddingTop = bar.offsetHeight + 16 + "px"; }; addEventListener("resize", fitBar); // keep the page heading clear of the bar
   const out = document.createElement("code"), line = () => { const ch = Object.entries(sel).filter(([k, v]) => v && v !== L.defaults[k]); out.textContent = ch.length ? "lab: " + ch.map(([k, v]) => k + "=" + v).join(" ") : "Nothing changed yet. Changed slots appear here; copy this line back."; };
   box.insertAdjacentHTML("beforeend", '<p class="note">The bar beside this button follows the music for what is on screen; NEXT steps to its next take. Here, pick a take for any slot; it swaps into the running game at once. ▶ previews a sound; for music it holds that track over the game until you press ■. SEAM jumps the current music to 4 s before its loop point. Choices are remembered in this browser.</p>');
   const top = document.createElement("div"); top.className = "r"; top.style.gridTemplateColumns = "1fr 1fr";
@@ -2410,13 +2411,13 @@ function buildLab(L) {
   let nowSlot;
   const syncNow = () => {
     const slot = SND.playing || null, src = selects[slot];
-    if (slot !== nowSlot) { nowSlot = slot; nowLb.textContent = "now: " + (slot ? ({ title: "title", ember: "snow village", ember_alt: "snow village alt", volt: "power house", frost: "springs", victory: "victory" })[slot] || slot : "silent"); nowSel.innerHTML = src ? src.innerHTML : ""; nowSel.disabled = nextBtn.disabled = !src; }
+    if (slot !== nowSlot) { nowSlot = slot; nowLb.textContent = "now: " + (slot ? ({ title: "title", ember: "snow village", ember_alt: "snow village alt", volt: "power house", frost: "springs", victory: "victory" })[slot] || slot : "silent"); nowSel.innerHTML = src ? src.innerHTML : ""; nowSel.disabled = nextBtn.disabled = !src; fitBar(); }
     if (src && nowSel.value !== src.value) nowSel.value = src.value;
   };
   const pickNow = (v) => { const src = selects[nowSlot]; if (!src) return; src.value = v; src.onchange(); syncNow(); };
   nowSel.onchange = () => { pickNow(nowSel.value); cv.focus(); };
   nextBtn.onclick = () => { const src = selects[nowSlot]; if (!src) return; const o = [...src.options], i = o.findIndex((q) => q.value === src.value); pickNow(o[(i + 1) % o.length].value); cv.focus(); };
-  setInterval(syncNow, 250);
+  setInterval(syncNow, 250); requestAnimationFrame(fitBar);
   bar.append(nowRow, btn); box.append(top, out); // the now-playing controls sit beside the SOUND LAB button, always visible
   for (const kind of ["music", "sfx"]) {
     const h = document.createElement("h2"); h.textContent = kind === "music" ? "MUSIC" : "SOUND EFFECTS"; box.append(h);
