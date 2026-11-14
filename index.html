@@ -17,6 +17,7 @@
 <meta property="og:image:alt" content="Pick a cat: Ember breathes fire, Volt zaps lightning, Frost freezes things">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://arcfinbolt.github.io/pixelcats/og.png">
+<script data-goatcounter="https://arcfinbolt.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <title>Ember the Fire Cat</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2616,8 +2617,11 @@ function feed(g, amount, steps) {
   if (g.power >= 0.999) return finish(g);
   if (steps) { SND.sfx(BEACON_SND[who], 0.8, 0.9); say(FINALE[who].step + " " + Math.round(g.power * steps) + "/" + steps, INFO[who].col); for (let i = 0; i < 10; i++) P_({ x: g.x + g.w / 2, y: g.y + 16, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 2.5, max: 30, type: who === "frost" ? "flake" : "spark" }); }
 }
+// play counts: the public page loads GoatCounter; anywhere else (the test copy, an ad blocker) this does nothing
+function track(path, title) { try { const gc = window.goatcounter; if (gc && gc.count) gc.count({ path, title, event: true }); } catch (_) {} }
 function finish(g) {
   if (g.lit) return; g.lit = true; g.power = 1; winT = 1; flash = 3; SND.sfx("beacon"); if (who === "ember") unlockAll();
+  track("complete-" + who, "Completed " + who[0].toUpperCase() + who.slice(1) + "'s level");
   for (let i = 0; i < 30; i++) P_({ x: g.x + g.w / 2, y: g.y + 10, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 3.5, max: 50, type: who === "frost" ? "flake" : "spark" });
 }
 
