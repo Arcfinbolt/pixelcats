@@ -2389,16 +2389,30 @@ cv.addEventListener("pointerdown", (e) => { cv.focus(); const r = cv.getBounding
 
 // ---------- sound lab: a drawer to try every take in the running game ----------
 function buildLab(L) {
-  const LKEY = "pixelcats.lab", musBtns = []; let sel = {}; try { sel = JSON.parse(localStorage.getItem(LKEY) || "{}"); } catch (_) {}
+  const LKEY = "pixelcats.lab", musBtns = [], selects = {}; let sel = {}; try { sel = JSON.parse(localStorage.getItem(LKEY) || "{}"); } catch (_) {}
   const btn = document.createElement("button"), box = document.createElement("div"); btn.id = "labBtn"; btn.type = "button"; btn.textContent = "SOUND LAB"; box.id = "lab"; box.hidden = true;
   btn.onclick = () => { box.hidden = !box.hidden; btn.textContent = box.hidden ? "SOUND LAB" : "CLOSE LAB"; cv.focus(); };
   document.body.append(btn, box);
   const out = document.createElement("code"), line = () => { const ch = Object.entries(sel).filter(([k, v]) => v && v !== L.defaults[k]); out.textContent = ch.length ? "lab: " + ch.map(([k, v]) => k + "=" + v).join(" ") : "Nothing changed yet. Changed slots appear here; copy this line back."; };
-  box.insertAdjacentHTML("beforeend", '<p class="note">Pick a take for any slot; it swaps into the running game at once. ▶ previews a sound; for music it holds that track over the game until you press ■. SEAM jumps the current music to 4 s before its loop point. Choices are remembered in this browser.</p>');
+  box.insertAdjacentHTML("beforeend", '<p class="note">The first row follows the music for what is on screen; NEXT steps to its next take. Below, pick a take for any slot; it swaps into the running game at once. ▶ previews a sound; for music it holds that track over the game until you press ■. SEAM jumps the current music to 4 s before its loop point. Choices are remembered in this browser.</p>');
   const top = document.createElement("div"); top.className = "r"; top.style.gridTemplateColumns = "1fr 1fr";
   const sb = document.createElement("button"); sb.type = "button"; sb.textContent = "SEAM"; sb.onclick = () => { SND.init(); SND.seam(); cv.focus(); };
   const cp = document.createElement("button"); cp.type = "button"; cp.textContent = "COPY PICKS"; cp.onclick = async () => { try { await navigator.clipboard.writeText(out.textContent); cp.textContent = "COPIED"; } catch (_) { const r = document.createRange(); r.selectNodeContents(out); getSelection().removeAllRanges(); getSelection().addRange(r); cp.textContent = "SELECTED"; } setTimeout(() => (cp.textContent = "COPY PICKS"), 1400); };
-  top.append(sb, cp); box.append(top, out);
+  top.append(sb, cp);
+  // "now": the music for what is on screen, with every take of that slot; NEXT steps to the following take
+  const nowRow = document.createElement("div"), nowLb = document.createElement("span"), nowSel = document.createElement("select"), nextBtn = document.createElement("button");
+  nowRow.className = "r"; nowSel.id = "lab-now"; nextBtn.type = "button"; nextBtn.textContent = "NEXT"; nowRow.append(nowLb, nowSel, nextBtn);
+  let nowSlot;
+  const syncNow = () => {
+    const slot = SND.playing || null, src = selects[slot];
+    if (slot !== nowSlot) { nowSlot = slot; nowLb.textContent = "now: " + (slot ? ({ title: "title", ember: "snow village", ember_alt: "snow village alt", volt: "power house", frost: "springs", victory: "victory" })[slot] || slot : "silent"); nowSel.innerHTML = src ? src.innerHTML : ""; nowSel.disabled = nextBtn.disabled = !src; }
+    if (src && nowSel.value !== src.value) nowSel.value = src.value;
+  };
+  const pickNow = (v) => { const src = selects[nowSlot]; if (!src) return; src.value = v; src.onchange(); syncNow(); };
+  nowSel.onchange = () => { pickNow(nowSel.value); cv.focus(); };
+  nextBtn.onclick = () => { const src = selects[nowSlot]; if (!src) return; const o = [...src.options], i = o.findIndex((q) => q.value === src.value); pickNow(o[(i + 1) % o.length].value); cv.focus(); };
+  setInterval(syncNow, 250);
+  box.append(nowRow, top, out);
   for (const kind of ["music", "sfx"]) {
     const h = document.createElement("h2"); h.textContent = kind === "music" ? "MUSIC" : "SOUND EFFECTS"; box.append(h);
     for (const [slot, list] of Object.entries(L[kind])) {
@@ -2412,7 +2426,7 @@ function buildLab(L) {
       const pv = document.createElement("button"); pv.type = "button"; pv.textContent = "▶";
       pv.onclick = () => { SND.init(); if (kind === "sfx") { if (slot === "breath" || slot === "charge") { SND.hold(slot, true); setTimeout(() => SND.hold(slot, false), 1500); } else SND.sfx(slot); } else { SND.force = SND.force === slot ? null : slot; for (const b of musBtns) b.textContent = "▶"; if (SND.force) pv.textContent = "■"; } };
       if (kind === "music") musBtns.push(pv);
-      r.append(lb, s, pv); box.append(r); s.value = L.defaults[slot];
+      r.append(lb, s, pv); box.append(r); s.value = L.defaults[slot]; if (kind === "music") selects[slot] = s;
       if (sel[slot] && sel[slot] !== L.defaults[slot]) apply(sel[slot]);
     }
   }
